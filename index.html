@@ -1,0 +1,1344 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>目押しローグライクスロット 3×3</title>
+  <style>
+    :root{
+      --bg:#0b1020;
+      --panel:#101a33;
+      --edge:rgba(255,255,255,.10);
+      --text:#e9f0ff;
+      --muted:#9fb4dd;
+      --cellH: 82px;
+      --reelW: 132px;
+      --radius: 18px;
+      --shadow: 0 18px 48px rgba(0,0,0,.38);
+      --gap: 12px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+      background: radial-gradient(1100px 720px at 50% 15%, #1a2a55 0%, var(--bg) 60%);
+      color:var(--text);
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      padding:16px;
+    }
+
+    .app{ width:min(1060px,100%); display:grid; gap:12px; }
+
+    .panel{
+      border:1px solid var(--edge);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      position:relative;
+    }
+
+    .hud{
+      display:flex; gap:10px; flex-wrap:wrap; align-items:center;
+      padding:12px 14px;
+      border-bottom:1px solid rgba(255,255,255,.06);
+      background: linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,0));
+    }
+    .chip{
+      display:flex; gap:8px; align-items:center;
+      padding:8px 10px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.16);
+      border-radius:999px;
+      font-variant-numeric: tabular-nums;
+      font-size:13px;
+    }
+    .chip span{ color:var(--muted); font-size:12px; }
+    .chip b{ font-weight:800; }
+
+    .controls{ margin-left:auto; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+
+    button{
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.18);
+      color:var(--text);
+      border-radius: 14px;
+      padding:10px 12px;
+      cursor:pointer;
+      transition: transform .08s ease, background .2s ease;
+      user-select:none;
+    }
+    button:hover{ background: rgba(255,255,255,.06); }
+    button:active{ transform: translateY(1px) scale(.99); }
+    button:disabled{ opacity:.5; cursor:not-allowed; }
+
+    .toggle{
+      display:flex; gap:8px; align-items:center;
+      padding:10px 12px; border-radius:14px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.18);
+      cursor:pointer;
+      user-select:none;
+      font-size:13px;
+    }
+    .dot{ width:10px; height:10px; border-radius:999px; background:#56607a; box-shadow: inset 0 0 0 2px rgba(0,0,0,.25); }
+    .dot.on{ background:#7ee787; box-shadow: 0 0 16px rgba(126,231,135,.35); }
+
+    .stage{ padding:14px; display:grid; gap:12px; }
+
+    .reelArea{ display:grid; justify-items:center; gap:10px; }
+
+    .reelRow{
+      display:flex; gap:var(--gap);
+      align-items:center; justify-content:center;
+      position:relative;
+      padding:8px 0;
+    }
+
+    .reel{
+      width:var(--reelW);
+      height: calc(var(--cellH) * 3);
+      border-radius: 18px;
+      border:1px solid rgba(255,255,255,.12);
+      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.01));
+      box-shadow: 0 16px 28px rgba(0,0,0,.28);
+      overflow:hidden;
+      position:relative;
+    }
+    .reel::before,.reel::after{
+      content:"";
+      position:absolute; left:0; right:0;
+      height:18px;
+      z-index:2;
+      pointer-events:none;
+    }
+    .reel::before{ top:0; background: linear-gradient(180deg, rgba(0,0,0,.58), rgba(0,0,0,0)); }
+    .reel::after { bottom:0; background: linear-gradient(0deg, rgba(0,0,0,.58), rgba(0,0,0,0)); }
+
+    .strip{
+      position:absolute; left:0; right:0; top:0;
+      will-change: transform, filter;
+      transform: translateY(0px);
+    }
+    .cell{
+      height:var(--cellH);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:52px;
+      text-shadow: 0 10px 24px rgba(0,0,0,.35);
+      user-select:none;
+    }
+
+    .gridLine{
+      position:absolute;
+      left:10px; right:10px;
+      height:2px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.22), transparent);
+      filter: drop-shadow(0 0 10px rgba(255,255,255,.18));
+      z-index:3;
+      pointer-events:none;
+    }
+    .gridLine.l1{ top: calc(var(--cellH) * 1); transform: translateY(-1px); }
+    .gridLine.l2{ top: calc(var(--cellH) * 2); transform: translateY(-1px); }
+
+    .spinning .strip{ filter: blur(.85px); }
+
+    .stopRow{
+      display:flex; gap:10px; flex-wrap:wrap;
+      justify-content:center;
+    }
+    .stopRow button{ min-width: 120px; padding:10px 14px; border-radius: 14px; }
+
+    .msg{
+      display:flex; gap:12px; align-items:center; justify-content:space-between;
+      padding:10px 12px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.16);
+      border-radius: 14px;
+    }
+    .msg .left{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+    .msg .main{ font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .msg .sub{ color:var(--muted); font-size:12px; line-height:1.35; }
+    .badge{
+      font-variant-numeric: tabular-nums;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      font-size:12px;
+      white-space:nowrap;
+    }
+
+    .lines{
+      position:absolute; inset:0;
+      pointer-events:none;
+      z-index:6;
+    }
+    .lines path{
+      fill:none;
+      stroke: rgba(255,255,255,.16);
+      stroke-width: 6;
+      stroke-linecap: round;
+      filter: drop-shadow(0 0 10px rgba(255,255,255,.12));
+    }
+    .lines path.win{
+      stroke: rgba(126,231,135,.95);
+      filter: drop-shadow(0 0 14px rgba(126,231,135,.35));
+    }
+
+    .glow{ animation: glow 820ms ease-in-out 0ms 2; }
+    @keyframes glow{
+      0%{ box-shadow: 0 16px 28px rgba(0,0,0,.28); }
+      50%{ box-shadow: 0 0 0 1px rgba(255,255,255,.2), 0 0 34px rgba(126,231,135,.35), 0 22px 42px rgba(0,0,0,.38); }
+      100%{ box-shadow: 0 16px 28px rgba(0,0,0,.28); }
+    }
+    .shake{ animation: shake 260ms ease-in-out; }
+    @keyframes shake{
+      0%{ transform: translateX(0); }
+      25%{ transform: translateX(-6px); }
+      50%{ transform: translateX(6px); }
+      75%{ transform: translateX(-3px); }
+      100%{ transform: translateX(0); }
+    }
+
+    /* ===== モーダル（強化画面） ===== */
+    .modal{
+      position:fixed;
+      inset:0;
+      background: rgba(0,0,0,.55);
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      padding:16px;
+      z-index:1000;
+    }
+    .modal.hidden{ display:none; }
+    .modalCard{
+      width:min(980px, 100%);
+      max-height: min(86vh, 820px);
+      overflow:auto;
+      border-radius: 20px;
+      border:1px solid rgba(255,255,255,.14);
+      background: linear-gradient(180deg, rgba(16,26,51,.96), rgba(10,16,32,.96));
+      box-shadow: 0 28px 70px rgba(0,0,0,.55);
+    }
+    .modalHead{
+      position:sticky; top:0;
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      padding:12px 14px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      background: linear-gradient(180deg, rgba(0,0,0,.22), rgba(0,0,0,0));
+      backdrop-filter: blur(8px);
+      z-index:5;
+    }
+    .modalHead .ttl{ font-weight:900; font-size:14px; letter-spacing:.3px; }
+    .modalBody{ padding:14px; display:grid; gap:12px; }
+
+    .shopGrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+    }
+    .card{
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.14);
+      border-radius: 16px;
+      padding:12px;
+      display:grid;
+      gap:10px;
+    }
+    .card h2{ margin:0; font-size:14px; }
+    .desc{ color:var(--muted); font-size:12px; line-height:1.4; }
+
+    .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-variant-numeric: tabular-nums; }
+    .row .meta{ color:var(--muted); font-size:12px; }
+    .price{
+      margin-left:auto;
+      color:var(--text);
+      font-size:12px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      padding:6px 10px;
+      border-radius:999px;
+      white-space:nowrap;
+    }
+
+    .symGrid{
+      display:grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap:10px;
+    }
+    .symBox{
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.10);
+      border-radius: 14px;
+      padding:10px;
+      display:grid;
+      gap:8px;
+    }
+    .symTop{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .symGlyph{ font-size:26px; line-height:1; }
+    .symStats{ color:var(--muted); font-size:12px; line-height:1.35; }
+    .symBtns{ display:flex; gap:8px; flex-wrap:wrap; }
+    .symBtns button{ padding:8px 10px; border-radius: 12px; font-size:12px; }
+
+    .footer{
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.5;
+      padding:0 2px;
+    }
+
+    @media (max-width: 860px){
+      .shopGrid{ grid-template-columns: 1fr; }
+      .symGrid{ grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 520px){
+      :root{ --reelW: 110px; --cellH: 76px; }
+      .cell{ font-size:48px; }
+      .symGrid{ grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="panel" id="panel">
+      <div class="hud">
+        <div class="chip"><span>コイン</span><b id="coins">0</b></div>
+        <div class="chip"><span>ベット</span><b id="bet">1</b></div>
+        <div class="chip"><span>フロア</span><b id="floor">1</b></div>
+        <div class="chip"><span>有効ライン</span><b id="linesN">1</b></div>
+        <div class="chip"><span>リール長</span><b id="reelLen">100</b></div>
+        <div class="chip"><span>速度補正</span><b id="speedMul">x1.00</b></div>
+        <div class="chip"><span>全体倍率</span><b id="multi">x1.00</b></div>
+        <div class="chip"><span>直近</span><b id="lastWin">0</b></div>
+
+        <div class="controls">
+          <button id="spinBtn">スピン</button>
+          <button id="upgradeBtn">強化</button>
+          <button id="newRunBtn">ニューラン</button>
+          <div class="toggle" id="soundToggle">
+            <div class="dot on" id="soundDot"></div><div>サウンド</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stage">
+        <div class="reelArea">
+          <div class="reelRow" id="reelRow">
+            <svg class="lines" id="linesSvg"></svg>
+
+            <div class="reel" id="reel0">
+              <div class="strip" id="strip0"></div>
+              <div class="gridLine l1"></div>
+              <div class="gridLine l2"></div>
+            </div>
+            <div class="reel" id="reel1">
+              <div class="strip" id="strip1"></div>
+              <div class="gridLine l1"></div>
+              <div class="gridLine l2"></div>
+            </div>
+            <div class="reel" id="reel2">
+              <div class="strip" id="strip2"></div>
+              <div class="gridLine l1"></div>
+              <div class="gridLine l2"></div>
+            </div>
+          </div>
+
+          <div class="stopRow">
+            <button id="stop0Btn" disabled>STOP 1（A）</button>
+            <button id="stop1Btn" disabled>STOP 2（S）</button>
+            <button id="stop2Btn" disabled>STOP 3（D）</button>
+          </div>
+        </div>
+
+        <div class="msg" id="msg">
+          <div class="left">
+            <div class="main" id="msgMain">準備完了</div>
+            <div class="sub" id="msgSub">スピン後、STOPで各リールを止めます。強化は「強化」ボタンから開きます。</div>
+          </div>
+          <div class="badge" id="badge">---</div>
+        </div>
+
+        <div class="footer">
+          判定（1ラインあたり）：
+          3つ揃い → ベース配当 × ベット × 全体倍率 × 絵柄倍率<br/>
+          2つ揃い（左2つ）→ チェリー=2 / スイカ=1 × ベット × 全体倍率 × 絵柄倍率<br/>
+          ※架空コインのゲーム用デモです（現金賭博用途ではありません）。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 強化モーダル ===== -->
+  <div class="modal hidden" id="upgradeModal" aria-hidden="true">
+    <div class="modalCard" role="dialog" aria-modal="true" aria-label="強化">
+      <div class="modalHead">
+        <div class="ttl">強化</div>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <div class="chip"><span>所持</span><b id="coins2">0</b></div>
+          <button id="closeUpgradeBtn">閉じる（Esc）</button>
+        </div>
+      </div>
+
+      <div class="modalBody">
+        <div class="shopGrid">
+          <div class="card">
+            <h2>ターボ（回転速度↑ / 全体倍率↑）</h2>
+            <div class="desc">目押しが難しくなりますが、その分「全体倍率」が上がります。</div>
+            <div class="row">
+              <div class="meta">Lv: <b id="turboLv">0</b></div>
+              <div class="meta">速度: <b id="turboSpdInfo">x1.00</b></div>
+              <div class="meta">全体倍率: <b id="mulInfo">x1.00</b></div>
+              <div class="price">コスト <b id="turboCost">0</b></div>
+              <button id="buyTurboBtn">購入</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>スロウ（回転速度↓）</h2>
+            <div class="desc">回転速度を下げます。ターボやフロア上昇を抑えられます。</div>
+            <div class="row">
+              <div class="meta">Lv: <b id="slowLv">0</b></div>
+              <div class="meta">速度: <b id="slowSpdInfo">x1.00</b></div>
+              <div class="price">コスト <b id="slowCost">0</b></div>
+              <button id="buySlowBtn">購入</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>ライン解放（当たりライン↑）</h2>
+            <div class="desc">有効ライン数が増えます。最初は中央1本のみ。</div>
+            <div class="row">
+              <div class="meta">Lv: <b id="linesLv">0</b></div>
+              <div class="meta">有効ライン: <b id="linesInfo">1</b></div>
+              <div class="price">コスト <b id="linesCost">0</b></div>
+              <button id="buyLinesBtn">購入</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>リール配置シャッフル（1レーンずつ / 固定100コイン）</h2>
+            <div class="desc">そのリールの並び順を丸ごとシャッフルします（絵柄数は変わりません）。</div>
+            <div class="row">
+              <div class="meta">固定コスト: <b>100</b></div>
+              <button id="shuffle0Btn">リール1をシャッフル</button>
+              <button id="shuffle1Btn">リール2をシャッフル</button>
+              <button id="shuffle2Btn">リール3をシャッフル</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>絵柄の強化（追加は置き換えなし / ランダム挿入）</h2>
+          <div class="desc">
+            「絵柄+1」は各リールに1個ずつ追加され、ランダム位置に挿入されます（リール長が増えます）。<br/>
+            「配当強化」はその絵柄の当たり倍率を上げます。
+          </div>
+          <div class="symGrid" id="symGrid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // ============================
+  // 絵柄：7 / 白ダイヤ / ベル / スイカ / チェリー
+  // 初期比率 1:1.5:2:2.5:3 → 10/15/20/25/30（合計100）
+  // ============================
+  const SYMBOLS = [
+    { id:"7", glyph:"7️⃣", baseCount:10, basePay3:50 },
+    { id:"D", glyph:"💎",  baseCount:15, basePay3:20 }, // 白ダイヤ
+    { id:"B", glyph:"🔔", baseCount:20, basePay3:10 },
+    { id:"W", glyph:"🍈", baseCount:25, basePay3:5  },
+    { id:"C", glyph:"🍒", baseCount:30, basePay3:3  },
+  ];
+  const PAY2L = { "🍒":2, "🍈":1 };
+
+  const BASE_BET = 1;
+  const START_COINS = 100000;
+
+  // ============================
+  // ライン（3×3）
+  // ============================
+  const ALL_LINES = [
+    { name:"MID",  rows:[1,1,1] },
+    { name:"TOP",  rows:[0,0,0] },
+    { name:"BOT",  rows:[2,2,2] },
+    { name:"DIAG\\", rows:[0,1,2] },
+    { name:"DIAG/",  rows:[2,1,0] },
+    { name:"V",    rows:[0,1,0] },
+    { name:"^",    rows:[2,1,2] },
+    { name:"Z1",   rows:[0,2,0] },
+    { name:"Z2",   rows:[2,0,2] },
+  ];
+  const baseLines = 1;
+  const linesUnlocked = (lv) => Math.min(baseLines + lv, ALL_LINES.length);
+
+  // ============================
+  // 速度要素
+  // ============================
+  const floorSpeedFactor = (floor) => 1 + Math.min(0.03 * (floor - 1), 0.85);
+  const turboSpeedFactor = (lv) => 1 + 0.12 * lv;
+  const turboPayoutFactor = (lv) => 1 + 0.12 * lv;
+  const slowSpeedFactor = (lv) => 1 / (1 + 0.18 * lv);
+
+  const brakeDurationMs = (turboLv) => 240 + turboLv * 18;
+
+  const cellH = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--cellH"));
+
+  // ============================
+  // DOM
+  // ============================
+  const reelRow = document.getElementById("reelRow");
+  const reelsEl = [0,1,2].map(i => document.getElementById("reel"+i));
+  const stripsEl = [0,1,2].map(i => document.getElementById("strip"+i));
+  const linesSvg = document.getElementById("linesSvg");
+
+  const coinsEl = document.getElementById("coins");
+  const coins2El = document.getElementById("coins2");
+  const betEl = document.getElementById("bet");
+  const floorEl = document.getElementById("floor");
+  const linesNEl = document.getElementById("linesN");
+  const reelLenEl = document.getElementById("reelLen");
+  const speedMulEl = document.getElementById("speedMul");
+  const multiEl = document.getElementById("multi");
+  const lastWinEl = document.getElementById("lastWin");
+
+  const msgMain = document.getElementById("msgMain");
+  const msgSub = document.getElementById("msgSub");
+  const badge = document.getElementById("badge");
+
+  const spinBtn = document.getElementById("spinBtn");
+  const upgradeBtn = document.getElementById("upgradeBtn");
+  const newRunBtn = document.getElementById("newRunBtn");
+  const stopBtns = [0,1,2].map(i => document.getElementById("stop"+i+"Btn"));
+
+  const soundToggle = document.getElementById("soundToggle");
+  const soundDot = document.getElementById("soundDot");
+
+  const upgradeModal = document.getElementById("upgradeModal");
+  const closeUpgradeBtn = document.getElementById("closeUpgradeBtn");
+
+  const turboLvEl = document.getElementById("turboLv");
+  const turboSpdInfoEl = document.getElementById("turboSpdInfo");
+  const mulInfoEl = document.getElementById("mulInfo");
+  const turboCostEl = document.getElementById("turboCost");
+  const buyTurboBtn = document.getElementById("buyTurboBtn");
+
+  const slowLvEl = document.getElementById("slowLv");
+  const slowSpdInfoEl = document.getElementById("slowSpdInfo");
+  const slowCostEl = document.getElementById("slowCost");
+  const buySlowBtn = document.getElementById("buySlowBtn");
+
+  const linesLvEl = document.getElementById("linesLv");
+  const linesInfoEl = document.getElementById("linesInfo");
+  const linesCostEl = document.getElementById("linesCost");
+  const buyLinesBtn = document.getElementById("buyLinesBtn");
+
+  const shuffleBtns = [
+    document.getElementById("shuffle0Btn"),
+    document.getElementById("shuffle1Btn"),
+    document.getElementById("shuffle2Btn"),
+  ];
+
+  const symGrid = document.getElementById("symGrid");
+
+  // ============================
+  // 状態
+  // ============================
+  let coins = START_COINS;
+  let bet = BASE_BET;
+  let floor = 1;
+
+  let turboLv = 0;
+  let slowLv = 0;
+  let linesLv = 0;
+
+  // 追加絵柄（置き換えなし）: id -> count
+  let extraCounts = Object.fromEntries(SYMBOLS.map(s => [s.id, 0]));
+  // 追加の回数レベル（コスト増用）
+  let addLv = Object.fromEntries(SYMBOLS.map(s => [s.id, 0]));
+  // 配当強化
+  let payLv = Object.fromEntries(SYMBOLS.map(s => [s.id, 0]));
+
+  let spinning = false;
+  let soundOn = true;
+
+  // ============================
+  // ユーティリティ
+  // ============================
+  function glyphOf(id){ return SYMBOLS.find(x => x.id === id).glyph; }
+  function basePay3Of(id){ return SYMBOLS.find(x => x.id === id).basePay3; }
+
+  function payMultiplierOf(id){ return 1 + 0.15 * (payLv[id] ?? 0); }
+  function overallMultiplier(){ return turboPayoutFactor(turboLv); }
+  function permanentSpeedMul(){ return turboSpeedFactor(turboLv) * slowSpeedFactor(slowLv); }
+
+  function totalExtra(){ return Object.values(extraCounts).reduce((a,v)=>a+v,0); }
+  function baseLen(){ return SYMBOLS.reduce((a,s)=>a+s.baseCount,0); } // 100
+  function currentLen(){ return baseLen() + totalExtra(); } // 100 + 追加
+
+  // ============================
+  // WebAudio
+  // ============================
+  let audioCtx = null;
+  function ensureAudio(){
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  function beep({freq=440, dur=0.07, type="sine", gain=0.05} = {}){
+    if (!soundOn) return;
+    ensureAudio();
+    const t0 = audioCtx.currentTime;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(gain, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(t0);
+    o.stop(t0 + dur);
+  }
+  const sSpin = ()=>beep({freq:240, dur:0.05, type:"triangle", gain:0.03});
+  const sStop = ()=>beep({freq:720, dur:0.05, type:"square", gain:0.035});
+  const sWin = ()=>{
+    beep({freq:523.25, dur:0.09, type:"sine", gain:0.06});
+    setTimeout(()=>beep({freq:659.25, dur:0.09, type:"sine", gain:0.06}), 90);
+    setTimeout(()=>beep({freq:783.99, dur:0.11, type:"sine", gain:0.06}), 180);
+  };
+  const sLose = ()=>beep({freq:210, dur:0.11, type:"triangle", gain:0.05});
+
+  // ============================
+  // 配列ユーティリティ
+  // ============================
+  function shuffleInPlace(a){
+    for (let i=a.length-1;i>0;i--){
+      const j = (Math.random() * (i+1)) | 0;
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+  function insertAtRandom(a, id){
+    const idx = (Math.random() * (a.length + 1)) | 0;
+    a.splice(idx, 0, id);
+  }
+
+  // 初期リール列（100個）を作る
+  function makeInitialSeq(){
+    const arr = [];
+    for (const s of SYMBOLS){
+      for (let i=0;i<s.baseCount;i++) arr.push(s.id);
+    }
+    shuffleInPlace(arr);
+    return arr; // length 100
+  }
+
+  function fillStrip(stripEl, seqIds){
+    stripEl.innerHTML = "";
+    const seq2 = seqIds.concat(seqIds);
+    for (const id of seq2){
+      const d = document.createElement("div");
+      d.className = "cell";
+      d.textContent = glyphOf(id);
+      stripEl.appendChild(d);
+    }
+  }
+
+  function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
+
+  class Reel {
+    constructor(i, reelEl, stripEl){
+      this.i = i;
+      this.reelEl = reelEl;
+      this.stripEl = stripEl;
+
+      this.seqIds = makeInitialSeq();
+      this.offset = 0;
+      this.speed = 0;
+      this.loopH = this.seqIds.length * cellH();
+      this.state = "idle";
+      this.brakeStart = 0;
+      this.brakeDur = 0;
+      this.brakeStartSpeed = 0;
+
+      fillStrip(this.stripEl, this.seqIds);
+      this.applyTransform();
+    }
+
+    refreshHeights(){
+      this.loopH = this.seqIds.length * cellH();
+    }
+
+    applyTransform(){
+      if (this.loopH <= 0) return;
+      const y = -(this.offset % this.loopH);
+      this.stripEl.style.transform = `translateY(${y}px)`;
+    }
+
+    resetVisual(){
+      this.reelEl.classList.remove("spinning");
+      this.reelEl.classList.remove("glow");
+    }
+
+    start(speedPxSec){
+      this.refreshHeights();
+      this.speed = speedPxSec;
+      this.state = "spin";
+      this.reelEl.classList.add("spinning");
+      this.applyTransform();
+    }
+
+    requestStop(now){
+      if (this.state !== "spin") return;
+      this.state = "brake";
+      this.brakeStart = now;
+      this.brakeDur = brakeDurationMs(turboLv);
+      this.brakeStartSpeed = this.speed;
+    }
+
+    update(now, dtMs){
+      const dt = dtMs / 1000;
+
+      if (this.state === "spin"){
+        this.offset = (this.offset + this.speed * dt) % this.loopH;
+        this.applyTransform();
+        return;
+      }
+
+      if (this.state === "brake"){
+        const t = Math.min(1, (now - this.brakeStart) / this.brakeDur);
+        const k = 1 - easeOutCubic(t);
+        const currSpeed = this.brakeStartSpeed * k;
+
+        this.offset = (this.offset + currSpeed * dt) % this.loopH;
+
+        if (t >= 1){
+          const h = cellH();
+          this.offset = Math.round(this.offset / h) * h;
+          this.offset = ((this.offset % this.loopH) + this.loopH) % this.loopH;
+
+          this.speed = 0;
+          this.state = "stopped";
+          this.reelEl.classList.remove("spinning");
+          this.applyTransform();
+        }else{
+          this.applyTransform();
+        }
+      }
+    }
+
+    isStopped(){ return this.state === "stopped"; }
+
+    idAtRow(row){
+      const h = cellH();
+      const len = this.seqIds.length;
+      const topIndex = (Math.floor(this.offset / h) % len + len) % len;
+      return this.seqIds[(topIndex + row) % len];
+    }
+
+    visible3Ids(){
+      return [0,1,2].map(r => this.idAtRow(r));
+    }
+
+    // 追加絵柄をランダムに挿入（置き換えなし）
+    addSymbolRandom(id){
+      insertAtRandom(this.seqIds, id);
+      this.refreshHeights();
+      fillStrip(this.stripEl, this.seqIds);
+      // offsetは新しいloopに丸め直して破綻防止
+      this.offset = ((this.offset % this.loopH) + this.loopH) % this.loopH;
+      this.applyTransform();
+    }
+
+    // リール単体シャッフル
+    shuffle(){
+      shuffleInPlace(this.seqIds);
+      fillStrip(this.stripEl, this.seqIds);
+      this.applyTransform();
+    }
+  }
+
+  const reels = [0,1,2].map(i => new Reel(i, reelsEl[i], stripsEl[i]));
+
+  // ============================
+  // ライン描画（SVG）
+  // ============================
+  let linePaths = [];
+  function rebuildLinesSvg(){
+    const rect = reelRow.getBoundingClientRect();
+    linesSvg.setAttribute("viewBox", `0 0 ${rect.width} ${rect.height}`);
+    linesSvg.setAttribute("width", rect.width);
+    linesSvg.setAttribute("height", rect.height);
+    linesSvg.innerHTML = "";
+    linePaths = [];
+
+    const reelRects = reelsEl.map(el => el.getBoundingClientRect());
+    const baseLeft = rect.left;
+    const baseTop = rect.top;
+
+    const centers = reelRects.map(rr => ({
+      x: (rr.left - baseLeft) + rr.width/2,
+      y0: (rr.top - baseTop) + (rr.height/6)*1,
+      y1: (rr.top - baseTop) + (rr.height/6)*3,
+      y2: (rr.top - baseTop) + (rr.height/6)*5,
+    }));
+
+    const activeN = linesUnlocked(linesLv);
+
+    for (let i=0;i<activeN;i++){
+      const rows = ALL_LINES[i].rows;
+      const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      const y = (col, row) => (row===0?centers[col].y0 : row===1?centers[col].y1 : centers[col].y2);
+      const d = `M ${centers[0].x} ${y(0,rows[0])} L ${centers[1].x} ${y(1,rows[1])} L ${centers[2].x} ${y(2,rows[2])}`;
+      p.setAttribute("d", d);
+      linesSvg.appendChild(p);
+      linePaths.push({ path:p, lineIndex:i });
+    }
+  }
+  window.addEventListener("resize", () => rebuildLinesSvg());
+
+  function markWinningLines(winSet){
+    linePaths.forEach(o => o.path.classList.toggle("win", winSet.has(o.lineIndex)));
+  }
+
+  // ============================
+  // コスト
+  // ============================
+  function turboCost(){ return Math.floor(18 * Math.pow(1.85, turboLv)); }
+  function slowCost(){  return Math.floor(22 * Math.pow(1.80, slowLv)); }
+  function linesCost(){ return Math.floor(28 * Math.pow(2.00, linesLv)); }
+  const SHUFFLE_COST = 100;
+
+  // 追加：希少ほど高い（ただし置き換えなしなので伸びすぎないよう緩め）
+  function addSymbolCost(id){
+    const baseCount = SYMBOLS.find(s=>s.id===id).baseCount;
+    const ext = extraCounts[id] ?? 0;
+    const rarity = Math.max(1, 100 / Math.max(1, baseCount)); // baseが少ないほど高い
+    const base = 22;
+    return Math.floor(base * Math.pow(1.22, addLv[id] ?? 0) * (0.85 + rarity * 0.10) * (1 + ext*0.02));
+  }
+
+  function payUpCost(id){
+    const lv = payLv[id] ?? 0;
+    const base = 24;
+    return Math.floor(base * Math.pow(1.55, lv));
+  }
+
+  // ============================
+  // UI 更新
+  // ============================
+  function setCoins(v){
+    coins = v;
+    coinsEl.textContent = String(coins);
+    coins2El.textContent = String(coins);
+  }
+  function setBet(v){ bet = v; betEl.textContent = String(bet); }
+  function setFloor(v){ floor = v; floorEl.textContent = String(floor); }
+  function setLastWin(v){ lastWinEl.textContent = String(v); }
+
+  function updateBaseUI(){
+    const mul = overallMultiplier();
+    const spdMul = permanentSpeedMul();
+    speedMulEl.textContent = `x${spdMul.toFixed(2)}`;
+    multiEl.textContent = `x${mul.toFixed(2)}`;
+
+    const ln = linesUnlocked(linesLv);
+    linesNEl.textContent = String(ln);
+
+    // リール長は全リール同じ運用（追加は全リールに1個ずつ）
+    reelLenEl.textContent = String(reels[0].seqIds.length);
+
+    // モーダル側
+    turboLvEl.textContent = String(turboLv);
+    slowLvEl.textContent = String(slowLv);
+    linesLvEl.textContent = String(linesLv);
+
+    turboSpdInfoEl.textContent = `x${turboSpeedFactor(turboLv).toFixed(2)}`;
+    slowSpdInfoEl.textContent  = `x${slowSpeedFactor(slowLv).toFixed(2)}`;
+    mulInfoEl.textContent = `x${mul.toFixed(2)}`;
+
+    linesInfoEl.textContent = String(ln);
+
+    turboCostEl.textContent = String(turboCost());
+    slowCostEl.textContent  = String(slowCost());
+    linesCostEl.textContent = String(linesCost());
+
+    buyTurboBtn.disabled = spinning || (coins < turboCost());
+    buySlowBtn.disabled  = spinning || (coins < slowCost());
+    buyLinesBtn.disabled = spinning || (coins < linesCost()) || (ln >= ALL_LINES.length);
+
+    shuffleBtns.forEach((b)=> b.disabled = spinning || (coins < SHUFFLE_COST));
+  }
+
+  function setSpinUI(isSpin){
+    spinning = isSpin;
+    spinBtn.disabled = isSpin;
+    stopBtns.forEach(b => b.disabled = !isSpin);
+
+    updateBaseUI();
+    updateSymbolShopUI();
+  }
+
+  // ============================
+  // 絵柄強化UI
+  // ============================
+  function renderSymbolShop(){
+    symGrid.innerHTML = "";
+    for (const s of SYMBOLS){
+      const box = document.createElement("div");
+      box.className = "symBox";
+
+      const top = document.createElement("div");
+      top.className = "symTop";
+
+      const glyph = document.createElement("div");
+      glyph.className = "symGlyph";
+      glyph.textContent = s.glyph;
+
+      const stat = document.createElement("div");
+      stat.className = "symStats";
+      stat.innerHTML = `
+        初期: <b>${s.baseCount}</b> / 追加: <b id="ex_${s.id}">0</b><br/>
+        3揃い: <b>${s.basePay3}</b> × 絵柄倍率 <b id="pm_${s.id}">x1.00</b><br/>
+        強化Lv: 追加 <b id="al_${s.id}">0</b> / 配当 <b id="pl_${s.id}">0</b>
+      `;
+
+      top.appendChild(glyph);
+      top.appendChild(stat);
+
+      const btns = document.createElement("div");
+      btns.className = "symBtns";
+
+      const bAdd = document.createElement("button");
+      bAdd.id = `btnAdd_${s.id}`;
+      bAdd.textContent = `絵柄+1（追加）`;
+
+      const bPay = document.createElement("button");
+      bPay.id = `btnPay_${s.id}`;
+      bPay.textContent = `配当強化`;
+
+      btns.appendChild(bAdd);
+      btns.appendChild(bPay);
+
+      const costRow = document.createElement("div");
+      costRow.className = "row";
+      costRow.innerHTML = `
+        <div class="meta">追加コスト: <b id="cAdd_${s.id}">0</b></div>
+        <div class="meta">配当コスト: <b id="cPay_${s.id}">0</b></div>
+      `;
+
+      box.appendChild(top);
+      box.appendChild(btns);
+      box.appendChild(costRow);
+      symGrid.appendChild(box);
+
+      bAdd.addEventListener("click", () => buyAddSymbol(s.id));
+      bPay.addEventListener("click", () => buyPayUp(s.id));
+    }
+  }
+
+  function updateSymbolShopUI(){
+    if (symGrid.children.length === 0) renderSymbolShop();
+
+    for (const s of SYMBOLS){
+      const ex  = document.getElementById(`ex_${s.id}`);
+      const pm  = document.getElementById(`pm_${s.id}`);
+      const al  = document.getElementById(`al_${s.id}`);
+      const pl  = document.getElementById(`pl_${s.id}`);
+      const cAdd= document.getElementById(`cAdd_${s.id}`);
+      const cPay= document.getElementById(`cPay_${s.id}`);
+
+      const btnAdd = document.getElementById(`btnAdd_${s.id}`);
+      const btnPay = document.getElementById(`btnPay_${s.id}`);
+
+      ex.textContent = String(extraCounts[s.id] ?? 0);
+      pm.textContent = `x${payMultiplierOf(s.id).toFixed(2)}`;
+      al.textContent = String(addLv[s.id] ?? 0);
+      pl.textContent = String(payLv[s.id] ?? 0);
+
+      const costA = addSymbolCost(s.id);
+      const costP = payUpCost(s.id);
+
+      cAdd.textContent = String(costA);
+      cPay.textContent = String(costP);
+
+      btnAdd.disabled = spinning || (coins < costA);
+      btnPay.disabled = spinning || (coins < costP);
+    }
+  }
+
+  // ============================
+  // 強化処理
+  // ============================
+  function buyTurbo(){
+    const c = turboCost();
+    if (spinning || coins < c) return;
+    setCoins(coins - c);
+    turboLv += 1;
+    updateBaseUI();
+    updateSymbolShopUI();
+    beep({freq:880, dur:0.06, type:"sine", gain:0.06});
+    msgMain.textContent = "ターボを強化しました";
+    msgSub.textContent = "速度↑、全体倍率↑";
+  }
+
+  function buySlow(){
+    const c = slowCost();
+    if (spinning || coins < c) return;
+    setCoins(coins - c);
+    slowLv += 1;
+    updateBaseUI();
+    updateSymbolShopUI();
+    beep({freq:700, dur:0.06, type:"sine", gain:0.06});
+    msgMain.textContent = "スロウを強化しました";
+    msgSub.textContent = "速度↓（目押しが楽になります）";
+  }
+
+  function buyLines(){
+    const c = linesCost();
+    if (spinning || coins < c) return;
+    if (linesUnlocked(linesLv) >= ALL_LINES.length) return;
+    setCoins(coins - c);
+    linesLv += 1;
+    updateBaseUI();
+    rebuildLinesSvg();
+    updateSymbolShopUI();
+    beep({freq:740, dur:0.06, type:"sine", gain:0.06});
+    msgMain.textContent = "ラインを解放しました";
+    msgSub.textContent = `有効ラインが ${linesUnlocked(linesLv)} 本になりました`;
+  }
+
+  function buyAddSymbol(id){
+    if (spinning) return;
+    const cost = addSymbolCost(id);
+    if (coins < cost) return;
+
+    setCoins(coins - cost);
+    extraCounts[id] = (extraCounts[id] ?? 0) + 1;
+    addLv[id] = (addLv[id] ?? 0) + 1;
+
+    // 各リールに1個ずつ追加し、ランダム挿入
+    reels.forEach(r => r.addSymbolRandom(id));
+
+    updateBaseUI();
+    updateSymbolShopUI();
+
+    msgMain.textContent = `絵柄追加：${glyphOf(id)} +1（置き換えなし）`;
+    msgSub.textContent = `各リールにランダム挿入。リール長=${reels[0].seqIds.length}`;
+    beep({freq: 760, dur:0.06, type:"sine", gain:0.06});
+  }
+
+  function buyPayUp(id){
+    if (spinning) return;
+    const cost = payUpCost(id);
+    if (coins < cost) return;
+
+    setCoins(coins - cost);
+    payLv[id] = (payLv[id] ?? 0) + 1;
+
+    updateBaseUI();
+    updateSymbolShopUI();
+
+    msgMain.textContent = `配当強化：${glyphOf(id)} ×${payMultiplierOf(id).toFixed(2)}`;
+    msgSub.textContent = "その絵柄の当たりだけ伸びます";
+    beep({freq: 920, dur:0.06, type:"sine", gain:0.06});
+  }
+
+  function shuffleReel(i){
+    if (spinning) return;
+    if (coins < SHUFFLE_COST) return;
+    setCoins(coins - SHUFFLE_COST);
+    reels[i].shuffle();
+    updateBaseUI();
+    updateSymbolShopUI();
+    msgMain.textContent = `リール${i+1}をシャッフルしました`;
+    msgSub.textContent = "配置が変わります（コスト100）";
+    beep({freq: 840, dur:0.06, type:"sine", gain:0.06});
+  }
+
+  // ============================
+  // 判定
+  // ============================
+  function evalLines(){
+    const activeN = linesUnlocked(linesLv);
+    const mulAll = overallMultiplier();
+    let total = 0;
+    const wins = new Set();
+
+    const grid = [0,1,2].map(c => reels[c].visible3Ids());
+
+    for (let i=0;i<activeN;i++){
+      const rows = ALL_LINES[i].rows;
+      const a = grid[0][rows[0]];
+      const b = grid[1][rows[1]];
+      const c = grid[2][rows[2]];
+
+      let pay = 0;
+
+      if (a === b && b === c){
+        const base = basePay3Of(a);
+        const mulSym = payMultiplierOf(a);
+        pay = base * bet * mulAll * mulSym;
+      }else if (a === b){
+        const ga = glyphOf(a);
+        const base2 = PAY2L[ga] ?? 0;
+        if (base2 > 0){
+          const mulSym = payMultiplierOf(a);
+          pay = base2 * bet * mulAll * mulSym;
+        }
+      }
+
+      if (pay > 0){
+        total += Math.floor(pay);
+        wins.add(i);
+      }
+    }
+
+    return { total, wins };
+  }
+
+  // ============================
+  // ループ
+  // ============================
+  let raf = 0;
+  let lastT = 0;
+
+  function startLoop(){
+    cancelAnimationFrame(raf);
+    lastT = performance.now();
+    const tick = (t) => {
+      const dt = t - lastT;
+      lastT = t;
+
+      reels.forEach(r => r.update(t, dt));
+
+      if (spinning && reels.every(r => r.isStopped())){
+        finishSpin();
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+  }
+
+  // ============================
+  // スピン処理
+  // ============================
+  function beginSpin(){
+    if (spinning) return;
+    if (coins < bet){
+      badge.textContent = "NO COIN";
+      msgMain.textContent = "コインが足りません";
+      msgSub.textContent = "ニューランで戻せます";
+      reelRow.classList.add("shake");
+      setTimeout(()=>reelRow.classList.remove("shake"), 280);
+      sLose();
+      return;
+    }
+
+    setCoins(coins - bet);
+    setLastWin(0);
+
+    badge.textContent = "SPIN";
+    msgMain.textContent = "目押し中…（STOPで止めます）";
+    msgSub.textContent = "A/S/Dでも止められます。";
+    markWinningLines(new Set());
+
+    reelsEl.forEach(el => el.classList.remove("glow"));
+    setSpinUI(true);
+
+    const base = 980; // px/sec
+    const spd = base
+      * floorSpeedFactor(floor)
+      * turboSpeedFactor(turboLv)
+      * slowSpeedFactor(slowLv);
+
+    reels.forEach(r => r.start(spd));
+    sSpin();
+
+    rebuildLinesSvg();
+    stopBtns.forEach(b => b.disabled = false);
+  }
+
+  function finishSpin(){
+    setSpinUI(false);
+
+    const { total, wins } = evalLines();
+    markWinningLines(wins);
+
+    if (total > 0){
+      setCoins(coins + total);
+      setLastWin(total);
+      badge.textContent = "WIN";
+      msgMain.textContent = `当たり：+${total}`;
+      msgSub.textContent = `ライン ${linesUnlocked(linesLv)}本 / 全体倍率 ${overallMultiplier().toFixed(2)}`;
+      reelsEl.forEach(el => el.classList.add("glow"));
+      reelRow.classList.add("shake");
+      setTimeout(()=>reelRow.classList.remove("shake"), 280);
+      sWin();
+    }else{
+      badge.textContent = "LOSE";
+      msgMain.textContent = "ハズレ";
+      msgSub.textContent = "絵柄追加・配当強化・リールシャッフルで寄せられます";
+      sLose();
+    }
+
+    setFloor(floor + 1);
+    updateBaseUI();
+    updateSymbolShopUI();
+  }
+
+  function stopReel(i){
+    if (!spinning) return;
+    const now = performance.now();
+    reels[i].requestStop(now);
+    sStop();
+    stopBtns[i].disabled = true;
+  }
+
+  // ============================
+  // モーダル制御
+  // ============================
+  function openUpgrade(){
+    upgradeModal.classList.remove("hidden");
+    upgradeModal.setAttribute("aria-hidden", "false");
+    updateBaseUI();
+    updateSymbolShopUI();
+  }
+  function closeUpgrade(){
+    upgradeModal.classList.add("hidden");
+    upgradeModal.setAttribute("aria-hidden", "true");
+  }
+
+  upgradeBtn.addEventListener("click", openUpgrade);
+  closeUpgradeBtn.addEventListener("click", closeUpgrade);
+  upgradeModal.addEventListener("click", (e)=>{ if (e.target === upgradeModal) closeUpgrade(); });
+
+  // Escで閉じる
+  document.addEventListener("keydown", (e)=>{
+    if (e.key === "Escape" && !upgradeModal.classList.contains("hidden")) closeUpgrade();
+  });
+
+  // ============================
+  // サウンド toggle
+  // ============================
+  soundToggle.addEventListener("click", async () => {
+    soundOn = !soundOn;
+    soundDot.classList.toggle("on", soundOn);
+    if (soundOn){
+      ensureAudio();
+      if (audioCtx.state === "suspended") { try{ await audioCtx.resume(); }catch{} }
+      beep({freq:960, dur:0.05, type:"sine", gain:0.05});
+    }
+  });
+  document.addEventListener("pointerdown", async () => {
+    if (!soundOn) return;
+    ensureAudio();
+    if (audioCtx.state === "suspended"){
+      try{ await audioCtx.resume(); }catch{}
+    }
+  }, { once:true });
+
+  // ============================
+  // イベント
+  // ============================
+  spinBtn.addEventListener("click", beginSpin);
+  newRunBtn.addEventListener("click", newRun);
+
+  stopBtns[0].addEventListener("click", () => stopReel(0));
+  stopBtns[1].addEventListener("click", () => stopReel(1));
+  stopBtns[2].addEventListener("click", () => stopReel(2));
+
+  document.addEventListener("keydown", (e) => {
+    // モーダルが開いている時もSTOPは効く（必要なら止めます）
+    if (!spinning || e.repeat) return;
+    const k = e.key.toLowerCase();
+    if (k === "a") stopReel(0);
+    if (k === "s") stopReel(1);
+    if (k === "d") stopReel(2);
+  });
+
+  buyTurboBtn.addEventListener("click", buyTurbo);
+  buySlowBtn.addEventListener("click", buySlow);
+  buyLinesBtn.addEventListener("click", buyLines);
+
+  shuffleBtns[0].addEventListener("click", ()=>shuffleReel(0));
+  shuffleBtns[1].addEventListener("click", ()=>shuffleReel(1));
+  shuffleBtns[2].addEventListener("click", ()=>shuffleReel(2));
+
+  // ============================
+  // ニューラン
+  // ============================
+  function newRun(){
+    cancelAnimationFrame(raf);
+
+    coins = START_COINS;
+    bet = BASE_BET;
+    floor = 1;
+
+    turboLv = 0;
+    slowLv = 0;
+    linesLv = 0;
+
+    extraCounts = Object.fromEntries(SYMBOLS.map(s => [s.id, 0]));
+    addLv = Object.fromEntries(SYMBOLS.map(s => [s.id, 0]));
+    payLv = Object.fromEntries(SYMBOLS.map(s => [s.id, 0]));
+
+    badge.textContent = "---";
+    msgMain.textContent = "ニューラン開始";
+    msgSub.textContent = "スピンして、STOPで目押しします";
+    setLastWin(0);
+
+    // 各リールを初期100で再生成
+    reels.forEach(r => {
+      r.state = "idle";
+      r.speed = 0;
+      r.seqIds = makeInitialSeq();
+      fillStrip(r.stripEl, r.seqIds);
+      r.refreshHeights();
+      r.offset = Math.random() * r.loopH;
+      r.applyTransform();
+      r.resetVisual();
+    });
+
+    setCoins(coins);
+    setBet(bet);
+    setFloor(floor);
+
+    setSpinUI(false);
+    updateBaseUI();
+    renderSymbolShop();
+    updateSymbolShopUI();
+    rebuildLinesSvg();
+    startLoop();
+  }
+
+  // ============================
+  // 初期化
+  // ============================
+  function init(){
+    setCoins(coins);
+    setBet(bet);
+    setFloor(floor);
+    setLastWin(0);
+
+    renderSymbolShop();
+    updateBaseUI();
+    updateSymbolShopUI();
+    rebuildLinesSvg();
+
+    setSpinUI(false);
+    startLoop();
+  }
+
+  window.addEventListener("resize", () => reels.forEach(r => r.refreshHeights()));
+  init();
+})();
+</script>
+</body>
+</html>
